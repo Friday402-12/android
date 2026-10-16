@@ -393,7 +393,7 @@ private fun WeekTab(
 ) {
     Column(
         modifier = Modifier
-            .fillMaxSize()
+            .fillMaxWidth()
             .verticalScroll(rememberScrollState())
             .padding(horizontal = 12.dp)
     ) {
@@ -414,7 +414,7 @@ private fun TodayTab(
 ) {
     Column(
         modifier = Modifier
-            .fillMaxSize()
+            .fillMaxWidth()
             .verticalScroll(rememberScrollState())
             .padding(horizontal = 12.dp)
     ) {
@@ -448,7 +448,7 @@ private fun SettingsTab(
 
     Column(
         modifier = Modifier
-            .fillMaxSize()
+            .fillMaxWidth()
             .verticalScroll(rememberScrollState())
             .padding(horizontal = 12.dp, vertical = 10.dp)
     ) {
