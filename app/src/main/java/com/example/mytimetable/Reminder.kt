@@ -51,7 +51,7 @@ object Reminder {
             NotificationManagerCompat.from(context).areNotificationsEnabled()
         }
 
-    /** 所有需要提醒的闹钟 PendingIntent，用于整体取消 */
+    /** 所有提醒对应的 PendingIntent（仅取已存在的，不新建） */
     private fun allPendingIntents(context: Context, t: Timetable): List<PendingIntent> {
         val list = mutableListOf<PendingIntent>()
         val today = LocalDate.now()
@@ -63,20 +63,19 @@ object Reminder {
             for (c in t.coursesOfDay(dayIdx, w)) {
                 for (sec in DefaultData.SECTIONS) {
                     if (sec.id != c.sec) continue
-                    list.add(pendingIntent(context, c, sec, date, PendingIntent.FLAG_NO_CREATE))
+                    existingPendingIntent(context, c, sec, date)?.let { list.add(it) }
                 }
             }
         }
-        return list.filterNotNull()
+        return list
     }
 
-    private fun pendingIntent(
-        context: Context,
-        course: Course,
-        sec: Section,
-        date: LocalDate,
-        extraFlags: Int
-    ): PendingIntent? {
+    /**
+     * 构造闹钟用的 PendingIntent。
+     * 注意：Android SDK 里 PendingIntent.getBroadcast 标记为 @Nullable，
+     * 所以这里显式判空后再 ?? error()，对外保证非空，避免调用处的空安全报错。
+     */
+    private fun buildPendingIntent(context: Context, course: Course, sec: Section, date: LocalDate): PendingIntent {
         val lead = context.getSharedPreferences("timetable", Context.MODE_PRIVATE)
             .getInt("lead", 10)
         val intent = Intent(context, ReminderReceiver::class.java).apply {
@@ -85,11 +84,31 @@ object Reminder {
             putExtra("room", course.room)
             putExtra("sec", sec.name + " " + sec.time)
         }
-        val requestCode = (course.id.hashCode() * 31 + date.hashCode()) * 31 + sec.id
-        var flags = PendingIntent.FLAG_IMMUTABLE or extraFlags
-        if (extraFlags == 0) flags = flags or PendingIntent.FLAG_UPDATE_CURRENT
-        return PendingIntent.getBroadcast(context, requestCode, intent, flags)
+        val requestCode = requestCodeOf(course, sec, date)
+        val pi = PendingIntent.getBroadcast(
+            context,
+            requestCode,
+            intent,
+            PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
+        )
+        return pi ?: error("无法创建提醒的 PendingIntent")
     }
+
+    /** 只查询已存在的 PendingIntent，不存在则返回 null（用于取消提醒） */
+    private fun existingPendingIntent(
+        context: Context,
+        course: Course,
+        sec: Section,
+        date: LocalDate
+    ): PendingIntent? = PendingIntent.getBroadcast(
+        context,
+        requestCodeOf(course, sec, date),
+        Intent(context, ReminderReceiver::class.java),
+        PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_NO_CREATE
+    )
+
+    private fun requestCodeOf(course: Course, sec: Section, date: LocalDate): Int =
+        (course.id.hashCode() * 31 + date.hashCode()) * 31 + sec.id
 
     private fun alarmManager(context: Context): AlarmManager? =
         context.getSystemService(Context.ALARM_SERVICE) as? AlarmManager
@@ -139,7 +158,7 @@ object Reminder {
                 val at = sec.startDateTime(date).minusMinutes(lead.toLong())
                 val atMillis = at.atZone(ZoneId.systemDefault()).toInstant().toEpochMilli()
                 if (atMillis <= System.currentTimeMillis()) continue
-                val pi = pendingIntent(context, c, sec, date, 0) ?: continue
+                val pi = buildPendingIntent(context, c, sec, date)
                 setAt(context, am, atMillis, pi)
             }
         }

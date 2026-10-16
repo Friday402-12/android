@@ -58,6 +58,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.mytimetable.ui.CourseDetailDialog
 import com.example.mytimetable.ui.EditCourseDialog
+import com.example.mytimetable.ui.MyTimetableTheme
 import com.example.mytimetable.ui.Session
 import com.example.mytimetable.ui.TodayScreen
 import com.example.mytimetable.ui.WeekScreen
